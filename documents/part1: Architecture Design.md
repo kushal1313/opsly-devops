@@ -21,15 +21,15 @@ When compared to other options like RDS, DynamoDB, MongoDB Atlas has the below a
 2. Easy to scale vertically based on load, Single click backup and automatic backup supported.
 3. Pricing based on usage.
 
-**Caching: AWS ElastiCache**
+**Caching: AWS ElastiCache with Valkey**
 
-When compared to other options like self-managed Redis/Memcached, AWS ElastiCache has the below advantages which makes it a better choice.
+When compared to other options like self-managed Redis/Memcached, AWS ElastiCache with valkey has the below advantages which makes it a better choice.
 
-1. AWS Fully managed, which helps to integrate applications in EKS with IRSA.
+1. AWS Fully managed with Multi-threaded I/O, which helps to integrate applications in EKS with IRSA.
 2. Zero downtime maintanence and Multi AZ deployments to acheive upto 99.99% availability.
 3. ElastiCache provides leading security (Amazon VPC, AWS IAM) and compliance standards (HIPAA eligible, FedRAMP authorized, and PCI DSS).
 4. Instant scaling to match any application demand and Microsecond Latency.
-5. Cost effective considering the reduction in operational work.
+5. Cost effective considering the reduction in operational work and Valkey being open source.
 
 **Messaging: Amazon SQS**
 
@@ -52,6 +52,8 @@ When compared to other options like EFS, the combination of S3 and EBS has the b
 7. Scaling of EBS is orchestrated by EKS.
 8. Controlled and predictable cost depedning on usage.
     
+## Architecture Diagram
+![Architecture Diagram](part1:architecture-design.png)
  
 
 
