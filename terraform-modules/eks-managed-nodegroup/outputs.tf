@@ -1,21 +1,21 @@
 output "launch_template_id" {
   description = "The ID of the launch template"
-  value       = aws_launch_template.lt[0].id
+  value       = var.create_separate_launch_template ? aws_launch_template.lt[0].id : null
 }
 
 output "launch_template_arn" {
   description = "The ARN of the launch template"
-  value       = aws_launch_template.lt[0].arn
+  value       = var.create_separate_launch_template ? aws_launch_template.lt[0].arn : null
 }
 
 output "launch_template_latest_version" {
   description = "The latest version of the launch template"
-  value       = aws_launch_template.lt[0].latest_version
+  value       = var.create_separate_launch_template ? aws_launch_template.lt[0].latest_version : null
 }
 
 output "launch_template_name" {
   description = "The name of the launch template"
-  value       = aws_launch_template.lt[0].name
+  value       = var.create_separate_launch_template ? aws_launch_template.lt[0].name : null
 }
 output "node_group_arn" {
   description = "Amazon Resource Name (ARN) of the EKS Node Group"

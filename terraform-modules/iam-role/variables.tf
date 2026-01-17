@@ -1,3 +1,7 @@
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 ##############################################################################
 # Variables required for IAM
 ##############################################################################
@@ -86,7 +90,7 @@ variable "create_instance_profile" {
   description = "Controls if the iam instance profile should be created"
   type        = bool
   default     = true
-  
+
 }
 
 ##############################################################################

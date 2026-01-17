@@ -20,6 +20,10 @@ variable "custom_tags" {
 ##################################
 # Variables required for SQS #
 ##################################
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 variable "create" {
   description = "Whether to create SQS queue"
   type        = bool

@@ -3,6 +3,10 @@ variable "create_bucket" {
   type        = bool
   default     = true
 }
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 variable "create_bucket_notification" {
   description = "Controls if S3 bucket should be created"
   type        = bool

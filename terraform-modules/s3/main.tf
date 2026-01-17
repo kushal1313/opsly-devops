@@ -1,6 +1,6 @@
 locals {
   bucket_arn = coalesce(var.bucket_arn, "arn:${data.aws_partition.this.partition}:s3:::${var.bucket_name}")
-  queue_ids = { for k, v in var.sqs_notifications : k => format("https://%s.%s.amazonaws.com/%s/%s", data.aws_arn.queue[k].service, data.aws_arn.queue[k].region, data.aws_arn.queue[k].account, data.aws_arn.queue[k].resource) if try(v.queue_id, "") == "" }
+  queue_ids  = { for k, v in var.sqs_notifications : k => format("https://%s.%s.amazonaws.com/%s/%s", data.aws_arn.queue[k].service, data.aws_arn.queue[k].region, data.aws_arn.queue[k].account, data.aws_arn.queue[k].resource) if try(v.queue_id, "") == "" }
 }
 module "s3_bucket" {
   source                               = "github.com/terraform-aws-modules/terraform-aws-s3-bucket?ref=v3.10.1"

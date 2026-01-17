@@ -26,3 +26,13 @@ output "cluster_id" {
   description = "The ID of the EKS cluster. Note: currently a value is returned only for local EKS clusters created on Outposts"
   value       = try(aws_eks_cluster.this[0].cluster_id, null)
 }
+
+output "cluster_version" {
+  description = "The Kubernetes version for the EKS cluster"
+  value       = try(aws_eks_cluster.this[0].version, null)
+}
+
+output "cluster_oidc_issuer_url" {
+  description = "The URL on the EKS cluster OIDC Issuer"
+  value       = try(aws_eks_cluster.this[0].identity[0].oidc[0].issuer, null)
+}

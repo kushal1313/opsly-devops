@@ -2,9 +2,9 @@
 # Variables required for aws_elasticache_cluster #
 ##################################################
 variable "create_cluster_without_replication" {
-  type = bool
+  type        = bool
   description = "Controls to create elastic cache cluster without replication group."
-  default = true
+  default     = true
 }
 variable "region" {
   type        = string

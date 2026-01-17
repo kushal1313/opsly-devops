@@ -6,7 +6,10 @@ variable "name" {
   description = "The name of the policy"
   type        = string
 }
-
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 variable "path" {
   description = "The path of the policy in IAM"
   type        = string
@@ -16,6 +19,7 @@ variable "path" {
 variable "description" {
   description = "The description of the policy"
   type        = string
+  default     = "IAM policy created from terraform"
 }
 
 variable "policy" {
