@@ -1,0 +1,33 @@
+global:
+  env: "staging"
+
+backend:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 8
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-backend-staging-role
+
+frontend:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-frontend-staging-role
+
+externalServices:
+  mongodb:
+    uri: "mongodb+srv://staging-user:staging-pass@cluster0.abcde.mongodb.net/ai-chatbot-staging?retryWrites=true&w=majority"
+  redis:
+    endpoint: "staging-cluster.abc123.cache.amazonaws.com"
+    port: 6379
+    tls: true
+
+ingress:
+  host: "chatbot-staging.opsly.com"
+  certificateArn: "arn:aws:acm:us-east-1:333333333333:certificate/staging-abc123"

@@ -1,0 +1,107 @@
+global:
+  env: "development"
+
+backend:
+  enabled: true
+
+frontend:
+  enabled: true
+
+externalServices:
+  mongodb:
+    uri: "mongodb+srv://user:pass@cluster0.abc123.mongodb.net/ai-chatbot?retryWrites=true&w=majority"
+  redis:
+    endpoint: "mycluster.abc123.cache.amazonaws.com"
+    port: 6379
+    tls: true
+
+backend:
+  configMapName: ""
+  secretName: ""
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: ""
+    automount: true
+    annotations: {}
+  image:
+    repository: "333333333333.dkr.ecr.us-east-1.amazonaws.com/ai-chatbot-backend"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    port: 8000
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+    limits:
+      cpu: 6000m
+      memory: 8Gi
+  nodeSelector:
+    workload-type: ml
+  tolerations:
+    - key: workload-type
+      operator: Equal
+      value: ml
+      effect: NoSchedule
+  env: {}
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+frontend:
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: ""
+    automount: true
+    annotations: {}
+  image:
+    repository: "333333333333.dkr.ecr.us-east-1.amazonaws.com/ai-chatbot-frontend"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  env:
+    apiUrl: ""
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+serviceAccount:
+  create: true
+  name: ""
+  automount: true
+  annotations: {}
+
+secrets:
+  create: true
+  data: {}
+
+ingress:
+  enabled: true
+  className: alb
+  host: "chatbot.opsly.com"
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/backend-protocol: "HTTP"
+  certificateArn: "arn:aws:acm:us-east-1:333333333333:certificate/abc123"
+  tls: true
+  tlsSecretName: ""

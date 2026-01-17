@@ -1,0 +1,40 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.tls }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+
+  NOTE: It may take a few minutes for the ALB to be provisioned.
+        You can check the ingress status by running:
+        kubectl get ingress --namespace {{ .Release.Namespace }} {{ include "ai-chatbot.fullname" . }}
+
+  Frontend: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}/
+  Backend API: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}/api
+{{- else }}
+  NOTE: Ingress is not enabled. You can access the services using port-forward:
+
+  # Frontend
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ .Release.Name }}-frontend 3000:{{ .Values.frontend.service.port }}
+
+  # Backend
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ .Release.Name }}-backend 8000:{{ .Values.backend.service.port }}
+
+  Then visit:
+  Frontend: http://localhost:3000
+  Backend API: http://localhost:8000
+{{- end }}
+
+2. Check the status of your deployment:
+   kubectl get pods --namespace {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+3. View logs:
+   # Frontend logs
+   kubectl logs --namespace {{ .Release.Namespace }} -l app.kubernetes.io/component=frontend
+
+   # Backend logs
+   kubectl logs --namespace {{ .Release.Namespace }} -l app.kubernetes.io/component=backend
+
+4. Check HPA status:
+   kubectl get hpa --namespace {{ .Release.Namespace }}

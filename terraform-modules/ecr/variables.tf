@@ -62,11 +62,6 @@ variable "create_repository" {
   default     = true
 }
 
-# variable "repository_name" {
-#   description = "The name of the repository"
-#   type        = string
-#   default     = ""
-# }
 
 variable "repository_image_tag_mutability" {
   description = "The tag mutability setting for the repository. Must be one of: `MUTABLE` or `IMMUTABLE`. Defaults to `IMMUTABLE`"

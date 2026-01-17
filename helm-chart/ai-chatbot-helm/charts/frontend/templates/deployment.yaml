@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "frontend.fullname" . }}
+  labels:
+    {{- include "frontend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "frontend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "frontend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.serviceAccount }}
+      {{- if .create }}
+      serviceAccountName: {{ include "frontend.serviceAccountName" $ }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: frontend
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+        env:
+        {{- if .Values.env.apiUrl }}
+        - name: NEXT_PUBLIC_API_URL
+          value: {{ .Values.env.apiUrl | quote }}
+        {{- else }}
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://{{ .Release.Name }}-backend:8000"
+        {{- end }}
+        {{- if .Values.env }}
+        {{- range $key, $value := .Values.env }}
+        {{- if ne $key "apiUrl" }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.healthCheck.livenessProbe }}
+        livenessProbe:
+          {{- toYaml .Values.healthCheck.livenessProbe | nindent 12 }}
+        {{- end }}
+        {{- if .Values.healthCheck.readinessProbe }}
+        readinessProbe:
+          {{- toYaml .Values.healthCheck.readinessProbe | nindent 12 }}
+        {{- end }}
+

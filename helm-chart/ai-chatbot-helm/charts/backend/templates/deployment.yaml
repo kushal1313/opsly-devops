@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "backend.fullname" . }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.serviceAccount }}
+      {{- if .create }}
+      serviceAccountName: {{ include "backend.serviceAccountName" $ }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: backend
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: {{ .Values.configMapName | default (printf "%s-ai-chatbot-framework-config" .Release.Name) }}
+        - secretRef:
+            name: {{ .Values.secretName | default (printf "%s-ai-chatbot-framework-secrets" .Release.Name) }}
+        {{- if .Values.env }}
+        env:
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.healthCheck.livenessProbe }}
+        livenessProbe:
+          {{- toYaml .Values.healthCheck.livenessProbe | nindent 12 }}
+        {{- end }}
+        {{- if .Values.healthCheck.readinessProbe }}
+        readinessProbe:
+          {{- toYaml .Values.healthCheck.readinessProbe | nindent 12 }}
+        {{- end }}
+

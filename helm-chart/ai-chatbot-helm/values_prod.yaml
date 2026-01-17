@@ -1,0 +1,33 @@
+global:
+  env: "production"
+
+backend:
+  replicaCount: 3
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 15
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-backend-prod-role
+
+frontend:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-frontend-prod-role
+
+externalServices:
+  mongodb:
+    uri: "mongodb+srv://prod-user:prod-pass@cluster0.abcde.mongodb.net/ai-chatbot-prod?retryWrites=true&w=majority"
+  redis:
+    endpoint: "prod-cluster.abc123.cache.amazonaws.com"
+    port: 6379
+    tls: true
+
+ingress:
+  host: "chatbot.opsly.com"
+  certificateArn: "arn:aws:acm:us-east-1:333333333333:certificate/prod-abc123"

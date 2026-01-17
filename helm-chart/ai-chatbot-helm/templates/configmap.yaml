@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-chatbot.fullname" . }}-config
+  labels:
+    {{- include "ai-chatbot.labels" . | nindent 4 }}
+data:
+  ENVIRONMENT: {{ .Values.global.env | default "development" | quote }}
+  {{- if .Values.backend.env }}
+  {{- range $key, $value := .Values.backend.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}

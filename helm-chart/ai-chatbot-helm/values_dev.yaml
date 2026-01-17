@@ -1,0 +1,31 @@
+global:
+  env: "development"
+
+backend:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 8
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-backend-dev-role
+
+frontend:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::333333333333:role/ai-chatbot-frontend-dev-role
+
+externalServices:
+  mongodb:
+    uri: "mongodb+srv://dev-user:dev-pass@cluster0.abcde.mongodb.net/ai-chatbot-dev?retryWrites=true&w=majority"
+  redis:
+    endpoint: "dev-cluster.abc123.cache.amazonaws.com"
+    port: 6379
+    tls: true
+
+ingress:
+  host: "chatbot-dev.opsly.com"
+  certificateArn: "arn:aws:acm:us-east-1:333333333333:certificate/dev-abc123"
