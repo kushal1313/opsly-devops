@@ -13,6 +13,10 @@ variable "cluster_version" {
   type        = string
   default     = ""
 }
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 ################################################################################
 # EKS Addons
 ################################################################################

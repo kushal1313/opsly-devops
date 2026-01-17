@@ -1,3 +1,7 @@
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 variable "name" {
   description = "Name of the EKS managed node group"
   type        = string

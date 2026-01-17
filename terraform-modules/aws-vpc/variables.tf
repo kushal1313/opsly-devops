@@ -3,6 +3,10 @@ variable "create_vpc" {
   type        = bool
   default     = true
 }
+variable "region" {
+  type        = string
+  description = "AWS region"
+}
 variable "vpc_id" {
   description = "ID of an existing VPC to use when use_existing_vpc = true"
   type        = string
