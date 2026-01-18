@@ -21,9 +21,6 @@ spec:
     name: prod-cluster
     namespace: chatbot-prod
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
