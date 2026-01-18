@@ -1,0 +1,161 @@
+global:
+  image:
+    tag: "v2.10.0"
+
+controller:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+server:
+  replicas: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 5
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    hosts:
+      - argocd.opsly.com
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:333333333333:certificate/argocd-abc123"
+    tls:
+      - secretName: argocd-server-tls
+        hosts:
+          - argocd.opsly.com
+  extraArgs:
+    - --insecure
+
+configs:
+  params:
+    server.insecure: true
+  url: "https://argocd.opsly.com"
+  cm:
+    oidc.config: |
+      name: OIDC
+      issuer: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123
+      clientId: $ARGOCD_OIDC_CLIENT_ID
+      clientSecret: $ARGOCD_OIDC_CLIENT_SECRET
+      requestedScopes: ["openid", "profile", "email", "groups"]
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+    oidc.tls.insecure.skip.verify: "false"
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:org-admin, applications, *, */*, allow
+      p, role:org-admin, clusters, get, *, allow
+      p, role:org-admin, clusters, create, *, allow
+      p, role:org-admin, repositories, get, *, allow
+      p, role:org-admin, repositories, create, *, allow
+      p, role:org-admin, certificates, get, *, allow
+      p, role:org-admin, certificates, create, *, allow
+      p, role:org-admin, accounts, get, *, allow
+      p, role:org-admin, accounts, update, *, allow
+      p, role:org-admin, gpgkeys, get, *, allow
+      p, role:org-admin, gpgkeys, create, *, allow
+      p, role:dev-team, applications, sync, */*ai-chatbot-dev*, allow
+      p, role:dev-team, applications, get, */*ai-chatbot-dev*, allow
+      p, role:dev-team, applications, sync, */*ai-chatbot-staging*, allow
+      p, role:dev-team, applications, get, */*ai-chatbot-staging*, allow
+      p, role:staging-team, applications, sync, */*ai-chatbot-staging*, allow
+      p, role:staging-team, applications, get, */*ai-chatbot-staging*, allow
+      p, role:prod-team, applications, sync, */*ai-chatbot-prod*, allow
+      p, role:prod-team, applications, get, */*ai-chatbot-prod*, allow
+      p, role:prod-team, applications, override, */*ai-chatbot-prod*, allow
+      g, dev-team@opsly.com, role:dev-team
+      g, staging-team@opsly.com, role:staging-team
+      g, prod-team@opsly.com, role:prod-team
+      g, admin@opsly.com, role:org-admin
+  accounts:
+    admin: apiKey, login
+    dev-team: apiKey, login
+    staging-team: apiKey, login
+    prod-team: apiKey, login
+    anonymous: ""
+
+repoServer:
+  replicas: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+applicationSet:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+notifications:
+  enabled: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+  secret:
+    createSecret: true
+    slack-token: "$SLACK_TOKEN"
+  config:
+    service.slack: |
+      token: $SLACK_TOKEN
+    triggers:
+      - description: Application synced
+        send:
+          - slack: ai-chatbot-alerts
+        when: app.status.operationState.phase in ['Succeeded', 'Failed']
+      - description: Application health degraded
+        send:
+          - slack: ai-chatbot-alerts
+        when: app.status.health.status == 'Degraded'
+      - description: Application sync failed
+        send:
+          - slack: ai-chatbot-alerts
+          - email: devops@opsly.com
+        when: app.status.operationState.phase == 'Failed'
+    defaultTriggers:
+      - description: Application synced
+        send:
+          - slack: ai-chatbot-alerts
+        when: app.status.operationState.phase in ['Succeeded', 'Failed']
+
+redis:
+  enabled: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
