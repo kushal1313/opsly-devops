@@ -2,6 +2,91 @@
 
 This repository contains Terraform modules and configurations to deploy a complete EKS infrastructure for the AI Chatbot Framework application.
 
+## Prerequisites
+
+1. **AWS CLI** configured with appropriate credentials
+2. **Terraform** >= 1.0
+3. **kubectl** installed
+4. **helm** installed (for managing Kubernetes applications)
+5. AWS account with appropriate permissions
+6. **Git** for cloning and managing the repository
+7. **Docker** (for building and pushing container images to ECR)
+
+## Quick Start Guide
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd opsly-devops
+```
+
+### 2. Configure Variables
+
+Create a `terraform.tfvars` file in the `aws/` directory:
+
+```bash
+cd aws
+cp variables.tf.example terraform.tfvars  # If example exists, or create manually
+```
+
+Edit `terraform.tfvars` with your configuration:
+
+```hcl
+aws_region = "us-east-1"
+cluster_name = "ai-chatbot-eks"
+cluster_version = "1.29"
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# General workload node group
+general_node_instance_types = ["t3.medium", "t3.large"]
+general_node_min_size = 2
+general_node_max_size = 5
+general_node_desired_size = 2
+
+# ML workload node group
+ml_node_instance_types = ["c5.xlarge", "m5.large"]
+ml_node_min_size = 1
+ml_node_max_size = 3
+ml_node_desired_size = 1
+
+# Mandatory tags
+mandatory_tags = {
+  TEAM        = "DevOps"
+  DEPARTMENT  = "Engineering"
+  OWNER       = "DevOps Team"
+  FUNCTION    = "AI Chatbot Infrastructure"
+  PRODUCT     = "AI Chatbot Framework"
+  ENVIRONMENT = "production"
+  Name        = "ai-chatbot-eks"
+}
+```
+
+### 3. Initialize Terraform
+
+```bash
+terraform init
+```
+
+### 4. Deploy Infrastructure
+
+Follow the staged deployment approach (recommended) or use a single apply. See the [Deployment](#deployment) section for detailed instructions.
+
+### 5. Configure kubectl
+
+```bash
+aws eks update-kubeconfig --region <your-region> --name <cluster-name>
+```
+
+### 6. Deploy ArgoCD (Optional)
+
+See the [ArgoCD README](argocd/README.md) for installation instructions.
+
+### 7. Deploy Application
+
+Use Helm charts or ArgoCD to deploy the AI Chatbot Framework application. See the [Helm Chart README](helm-chart/ai-chatbot-helm/README.md) for details.
+
 ## Architecture Overview
 
 The infrastructure includes:
@@ -26,13 +111,131 @@ The infrastructure includes:
   - ElastiCache Redis
   - SQS queue
 
-## Prerequisites
+### High-Level Architecture
 
-1. **AWS CLI** configured with appropriate credentials
-2. **Terraform** >= 1.0
-3. **kubectl** installed
-4. **helm** installed (for managing Kubernetes applications)
-5. AWS account with appropriate permissions
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         AWS Account                          │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │                    VPC (10.0.0.0/16)                  │  │
+│  │                                                       │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐ │  │
+│  │  │   Public     │  │   Public     │  │  Public   │ │  │
+│  │  │   Subnet AZ1 │  │   Subnet AZ2 │  │  Subnet AZ3│ │  │
+│  │  └──────────────┘  └──────────────┘  └───────────┘ │  │
+│  │                                                       │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐ │  │
+│  │  │  Private     │  │  Private     │  │  Private  │ │  │
+│  │  │  Subnet AZ1  │  │  Subnet AZ2  │  │  Subnet AZ3│ │  │
+│  │  └──────────────┘  └──────────────┘  └───────────┘ │  │
+│  │                                                       │  │
+│  │  ┌───────────────────────────────────────────────┐   │  │
+│  │  │         EKS Cluster (1.29+)                   │   │  │
+│  │  │  ┌─────────────────────────────────────────┐  │   │  │
+│  │  │  │  Node Group: General (t3.medium/large)  │  │   │  │
+│  │  │  └─────────────────────────────────────────┘  │   │  │
+│  │  │  ┌─────────────────────────────────────────┐  │   │  │
+│  │  │  │  Node Group: ML (c5.xlarge/m5.large)    │  │   │  │
+│  │  │  └─────────────────────────────────────────┘  │   │  │
+│  │  └───────────────────────────────────────────────┘   │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │   S3     │  │   ECR    │  │ElastiCache│  │   SQS    │   │
+│  │  Bucket  │  │Repos     │  │  Redis    │  │  Queue   │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Directory Structure
+
+```
+.
+├── aws/                    # Main Terraform configuration
+│   ├── main.tf            # Infrastructure definitions
+│   ├── variables.tf       # Variable definitions
+│   └── outputs.tf         # Output definitions
+├── terraform-modules/     # Reusable Terraform modules
+│   ├── aws-vpc/           # VPC module
+│   ├── eks/               # EKS cluster module
+│   ├── eks-managed-nodegroup/  # Node group module
+│   ├── eks-managed-addons/     # EKS add-ons module
+│   ├── iam-role/          # IAM role module
+│   ├── iam-policy/        # IAM policy module
+│   ├── s3/                # S3 bucket module
+│   ├── ecr/               # ECR repository module
+│   ├── elasticache/       # ElastiCache module
+│   └── sqs/               # SQS queue module
+├── argocd/                # ArgoCD configuration and applications
+├── helm-chart/            # Helm charts for application deployment
+│   └── ai-chatbot-helm/   # Main application Helm chart
+├── documents/             # Architecture and design documentation
+└── README.md              # This file
+```
+
+## Known Limitations/Assumptions
+
+### Infrastructure Limitations
+
+1. **Staged Deployment Required**: Due to Terraform resource dependencies, infrastructure must be deployed in specific stages. A single `terraform apply` may fail due to dependency issues.
+
+2. **Single Region Deployment**: The current configuration assumes deployment in a single AWS region. Multi-region deployments require additional configuration.
+
+3. **VPC CIDR Constraints**: The VPC CIDR block must be large enough to accommodate all subnets. Default configuration uses `/16` CIDR block.
+
+4. **EKS Version**: The infrastructure is designed for EKS 1.29+. Older versions may require adjustments to add-on configurations.
+
+5. **Node Group Scaling**: Node groups use managed scaling with fixed min/max sizes. Manual intervention may be required for extreme scaling scenarios.
+
+6. **ElastiCache Configuration**: ElastiCache Redis is configured as a single-node cluster. For production high-availability, consider upgrading to a multi-node cluster with replication.
+
+7. **NAT Gateway Costs**: The configuration creates one NAT Gateway per Availability Zone, which can be costly. Consider using a single NAT Gateway for cost optimization in non-production environments.
+
+### Security Assumptions
+
+1. **IAM Permissions**: Assumes the deploying user/role has sufficient IAM permissions to create EKS clusters, VPCs, and related resources.
+
+2. **Network Security**: EKS endpoint has both private and public access enabled by default. For enhanced security, consider restricting to private-only access.
+
+3. **Node Group Security**: All node groups are deployed in private subnets, which is a security best practice.
+
+4. **IRSA Configuration**: IRSA roles are configured with minimum required permissions. Additional permissions may be needed for specific use cases.
+
+### Operational Assumptions
+
+1. **AWS Account**: Assumes a single AWS account for all resources. Multi-account setups require additional configuration.
+
+2. **Tagging**: All resources are tagged with mandatory tags. Custom tags can be added but mandatory tags are required.
+
+3. **Helm Chart Versions**: Helm chart versions are pinned. Update versions carefully and test in non-production environments first.
+
+4. **ArgoCD**: ArgoCD is optional but recommended for GitOps workflows. Manual Helm deployments are also supported.
+
+5. **Container Images**: Assumes container images are built and pushed to ECR separately. The infrastructure does not include CI/CD pipeline configuration.
+
+6. **Monitoring**: Basic monitoring setup is not included. Consider adding CloudWatch Container Insights, Prometheus, or other monitoring solutions.
+
+7. **Backup Strategy**: No automated backup strategy is configured. Implement backup strategies for critical data (S3, ElastiCache, etc.).
+
+### Cost Considerations
+
+1. **NAT Gateways**: Multiple NAT Gateways (one per AZ) can be expensive. Consider using a single NAT Gateway for cost savings in development environments.
+
+2. **Node Groups**: ML node groups use compute-optimized instances (c5.xlarge/m5.large) which are more expensive than general-purpose instances.
+
+3. **ElastiCache**: Single-node ElastiCache Redis is cost-effective but lacks high availability.
+
+4. **EKS Control Plane**: EKS control plane costs are fixed per cluster regardless of node count.
+
+### Future Enhancements
+
+1. **Multi-Region Support**: Add support for multi-region deployments
+2. **High Availability ElastiCache**: Upgrade to multi-node ElastiCache cluster
+3. **Automated Backups**: Implement automated backup strategies
+4. **Cost Optimization**: Add cost optimization recommendations and automation
+5. **Enhanced Monitoring**: Integrate comprehensive monitoring and alerting
+6. **Disaster Recovery**: Add disaster recovery procedures and documentation
 
 ## Directory Structure
 
