@@ -1,0 +1,377 @@
+name: AI Chatbot Framework CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 333333333333.dkr.ecr.us-east-1.amazonaws.com
+  SOURCE_REPO: alfredfrancis/ai-chatbot-framework
+  GITOPS_REPO: kushal1313/opsly-devops
+
+jobs:
+  determine-environment:
+    name: Determine Target Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      image-tag: ${{ steps.set-env.outputs.image-tag }}
+      values-file: ${{ steps.set-env.outputs.values-file }}
+    steps:
+      - name: Set environment variables
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          SHORT_SHA=${GITHUB_SHA::8}
+          IMAGE_TAG="${ENV}-${TIMESTAMP}-${SHORT_SHA}"
+          
+          if [ "$ENV" == "prod" ]; then
+            VALUES_FILE="values_prod.yaml"
+          else
+            VALUES_FILE="values_dev.yaml"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "values-file=$VALUES_FILE" >> $GITHUB_OUTPUT
+          
+          echo "Target environment: $ENV"
+          echo "Image tag: $IMAGE_TAG"
+          echo "Values file: $VALUES_FILE"
+
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          path: source
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./source
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install --upgrade pip
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt found"
+            exit 1
+          fi
+
+      - name: Run linting
+        working-directory: ./source
+        run: |
+          if command -v pylint &> /dev/null; then
+            pylint app/ --disable=all --enable=errors || true
+          fi
+
+      - name: Run unit tests
+        working-directory: ./source
+        run: |
+          if [ -d "tests" ]; then
+            pytest tests/ -v --cov=app --cov-report=xml --cov-report=term || exit 1
+          else
+            echo "No tests directory found"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./source/coverage.xml
+          flags: backend
+        if: always()
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          path: source
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: source/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./source/frontend
+        run: |
+          if [ -f package.json ]; then
+            npm ci --prefer-offline --no-audit
+          else
+            echo "No package.json found"
+            exit 1
+          fi
+
+      - name: Run linting
+        working-directory: ./source/frontend
+        run: |
+          npm run lint || echo "Linting completed with warnings"
+
+      - name: Run unit tests
+        working-directory: ./source/frontend
+        run: |
+          npm test -- --coverage --watchAll=false || exit 1
+
+      - name: Build frontend
+        working-directory: ./source/frontend
+        run: |
+          npm run build || exit 1
+
+  build-images:
+    name: Build and Push Docker Images
+    needs: [determine-environment, test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    outputs:
+      backend-tag: ${{ steps.set-outputs.outputs.backend-tag }}
+      frontend-tag: ${{ steps.set-outputs.outputs.frontend-tag }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          path: source
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        id: backend-build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./source
+          file: ./source/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/ai-chatbot-backend:${{ needs.determine-environment.outputs.image-tag }}
+            ${{ steps.ecr-login.outputs.registry }}/ai-chatbot-backend:latest
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/ai-chatbot-backend:buildcache
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/ai-chatbot-backend:buildcache,mode=max
+          platforms: linux/amd64
+
+      - name: Build and push frontend image
+        id: frontend-build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./source/frontend
+          file: ./source/frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/ai-chatbot-frontend:${{ needs.determine-environment.outputs.image-tag }}
+            ${{ steps.ecr-login.outputs.registry }}/ai-chatbot-frontend:latest
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/ai-chatbot-frontend:buildcache
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/ai-chatbot-frontend:buildcache,mode=max
+          platforms: linux/amd64
+
+      - name: Set job outputs
+        id: set-outputs
+        run: |
+          echo "backend-tag=${{ needs.determine-environment.outputs.image-tag }}" >> $GITHUB_OUTPUT
+          echo "frontend-tag=${{ needs.determine-environment.outputs.image-tag }}" >> $GITHUB_OUTPUT
+
+  update-gitops:
+    name: Update GitOps Repository
+    needs: [determine-environment, build-images]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          path: gitops
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git config --global init.defaultBranch main
+
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.40.5"
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Update Helm values
+        working-directory: ./gitops
+        env:
+          VALUES_FILE: helm-chart/ai-chatbot-helm/${{ needs.determine-environment.outputs.values-file }}
+          BACKEND_TAG: ${{ needs.build-images.outputs.backend-tag }}
+          FRONTEND_TAG: ${{ needs.build-images.outputs.frontend-tag }}
+        run: |
+          if [ ! -f "$VALUES_FILE" ]; then
+            echo "Error: Values file $VALUES_FILE not found"
+            exit 1
+          fi
+          
+          yq eval ".backend.image.repository = \"${{ env.ECR_REGISTRY }}/ai-chatbot-backend\"" -i "$VALUES_FILE"
+          yq eval ".backend.image.tag = \"$BACKEND_TAG\"" -i "$VALUES_FILE"
+          
+          yq eval ".frontend.image.repository = \"${{ env.ECR_REGISTRY }}/ai-chatbot-frontend\"" -i "$VALUES_FILE"
+          yq eval ".frontend.image.tag = \"$FRONTEND_TAG\"" -i "$VALUES_FILE"
+          
+          echo "Updated $VALUES_FILE"
+          echo "Backend image: ${{ env.ECR_REGISTRY }}/ai-chatbot-backend:$BACKEND_TAG"
+          echo "Frontend image: ${{ env.ECR_REGISTRY }}/ai-chatbot-frontend:$FRONTEND_TAG"
+
+      - name: Validate YAML
+        working-directory: ./gitops
+        run: |
+          yq eval helm-chart/ai-chatbot-helm/${{ needs.determine-environment.outputs.values-file }} > /dev/null
+          echo "YAML validation passed"
+
+      - name: Commit and push changes
+        working-directory: ./gitops
+        env:
+          BACKEND_TAG: ${{ needs.build-images.outputs.backend-tag }}
+          FRONTEND_TAG: ${{ needs.build-images.outputs.frontend-tag }}
+        run: |
+          git add helm-chart/ai-chatbot-helm/${{ needs.determine-environment.outputs.values-file }}
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          COMMIT_MSG="chore: update image tags [skip ci]
+
+          - Backend: $BACKEND_TAG
+          - Frontend: $FRONTEND_TAG
+          - Environment: ${{ needs.determine-environment.outputs.environment }}
+          - Commit: ${{ github.sha }}"
+          
+          git commit -m "$COMMIT_MSG"
+          git push origin HEAD:${{ github.ref_name }}
+
+  sync-argocd:
+    name: Trigger ArgoCD Sync
+    needs: [determine-environment, update-gitops]
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (needs.determine-environment.outputs.environment == 'dev' || github.event.inputs.environment == 'dev')
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Install ArgoCD CLI
+        run: |
+          ARGOCD_VERSION="v2.10.0"
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64
+          sudo install -m 555 argocd /usr/local/bin/argocd
+          rm argocd
+          argocd version --client
+
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --kubeconfig $HOME/.kube/config
+          
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Get ArgoCD credentials
+        id: argocd-creds
+        run: |
+          ARGOCD_SERVER=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "argocd.opsly.com")
+          ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo "")
+          
+          echo "server=$ARGOCD_SERVER" >> $GITHUB_OUTPUT
+          echo "password=$ARGOCD_PASSWORD" >> $GITHUB_OUTPUT
+          
+          if [ -z "$ARGOCD_PASSWORD" ]; then
+            echo "Warning: Could not retrieve ArgoCD admin password"
+          fi
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ steps.argocd-creds.outputs.server }} \
+            --username admin \
+            --password ${{ steps.argocd-creds.outputs.password }} \
+            --insecure \
+            --grpc-web || exit 1
+
+      - name: Sync ArgoCD application
+        run: |
+          APP_NAME="ai-chatbot-dev"
+          
+          echo "Syncing ArgoCD application: $APP_NAME"
+          argocd app get $APP_NAME || {
+            echo "Application $APP_NAME not found"
+            exit 1
+          }
+          
+          argocd app sync $APP_NAME --async --prune
+          
+          echo "Sync triggered for $APP_NAME"
+          sleep 5
+          argocd app wait $APP_NAME --timeout 300 --sync || echo "Application sync in progress"
+
+      - name: Display application status
+        if: always()
+        run: |
+          argocd app get ai-chatbot-dev
